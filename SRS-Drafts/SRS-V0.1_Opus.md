@@ -53,7 +53,7 @@
 |---|---|---|
 | CON-01 | 기상청 단기예보 API Rate Limit: 1,000회/일 — 배치 큐잉 필수 | PRD §6-2, §7-3 R1 |
 | CON-02 | 카페24 API Rate Limit: 분당 100회 — 캐시 레이어 필수 | PRD §6-2, §7-3 R2 |
-| CON-03 | MVP 기간 인프라 월 비용 ≤ 500만 원 (AWS 스타트업 크레딧 활용) | PRD §5-3 |
+| CON-03 | MVP 기간 인프라 월 비용: 무료~최대 월 100만 원 이내 (클라우드 무료 티어 우선 활용) | PRD §5-3 |
 | CON-04 | F3(인원 역산)은 F2(API 연동 모듈) 선행 완료 필수 | PRD §7-4 의존성 1 |
 | CON-05 | PDF 리포트 양식은 파일럿 고객의 기존 결재 양식 수집 후 확정 | PRD §7-4 의존성 3 |
 | CON-06 | XAI 해설 품질은 LLM 서머라이저의 한국어 경영진 톤 조정 성능에 의존 | PRD §7-4 의존성 2 |
@@ -67,7 +67,8 @@
 | ASM-01 | 카페24·스마트스토어 API가 현재 스펙대로 최소 12개월 유지된다 | PRD §7-4 가정 1 |
 | ASM-02 | 기상청 단기예보 API 무료 이용이 MVP 기간 동안 지속된다 | PRD §7-4 가정 2 |
 | ASM-03 | 파일럿 고객(2사)이 Sprint 3 시작 전까지 확보 가능하다 | PRD §7-4 가정 3 |
-| ASM-04 | AWS 스타트업 크레딧으로 초기 인프라 비용을 자체 부담 없이 운영 가능하다 | PRD §7-4 가정 4 |
+| ASM-04 | 클라우드 무료 티어(AWS Free Tier, GCP Free Tier 등) 및 저비용 인스턴스 조합으로 MVP 기간 월 100만 원 이내 운영이 가능하다 | PRD §7-4 가정 4 |
+| ASM-05 | AWS 스타트업 크레딧 정책 변동 시 대안 전환이 가능하다. 대안: ① GCP/Azure 무료 크레딧 프로그램 전환 ② Serverless 아키텍처(Lambda/Cloud Functions) 전환으로 유휴 비용 제거 ③ 온프레미스 GPU 또는 Spot/Preemptible 인스턴스 활용 ④ 예측 엔진을 경량 모델(LightGBM)로 대체하여 GPU 의존도 제거 | SRS 자체 보완 |
 
 ### 1.3 Definitions, Acronyms, Abbreviations
 
@@ -94,7 +95,7 @@
 | ID | 문서 / 출처 | 설명 |
 |---|---|---|
 | **REF-01** | PRD v0.1 (2026-04-15) | 본 SRS의 원천 문서 (Product Requirements Document) |
-| **REF-02** | VPS Integrated V2 (`04_VPS-final/06_VPS-Integrated-V2.md`) | Value Proposition Sheet — 페르소나, AOS/DOS, KSF, 가치 사슬 분석 |
+| **REF-02** | PRD v0.1 §2 (페르소나·기회 분석) | 페르소나 정의(김아름·정동환·권혁수), AOS/DOS 기회 점수, KSF, 가치 사슬 분석 — PRD 본문에 직접 포함 |
 | **REF-03** | ISO/IEC/IEEE 29148:2018 | Systems and software engineering — Life cycle processes — Requirements engineering |
 | **REF-04** | FMI 2025 글로벌 AI 수요예측 시장 보고서 | TAM 약 8.3억 달러 근거 |
 | **REF-05** | 기상청 단기예보 API 공식 문서 | API 스펙, Rate Limit, 응답 포맷 |
@@ -102,7 +103,7 @@
 | **REF-07** | 네이버 스마트스토어 커머스 API 공식 문서 | 주문/상품 API 스펙, 인증 |
 | **REF-08** | 네이버 DataLab 검색어 트렌드 API 공식 문서 | 검색량 지수 API 스펙 |
 | **REF-09** | 카카오 알림톡 API 공식 문서 | 발송 API, 템플릿 관리, 과금 체계 |
-| **REF-10** | JTBD 인터뷰 원본 (VPS §1-9) | 김아름·권혁수·정동환 인터뷰 증거 |
+| **REF-10** | PRD v0.1 §2-1, §3 (페르소나 인터뷰) | 김아름·권혁수·정동환 JTBD 인터뷰 결과 및 User Story — PRD 본문에 직접 포함 |
 
 ---
 
@@ -132,7 +133,22 @@
 | EXT-04 | 스마트스토어 API | Inbound | REST/HTTPS (OAuth 2.0) | 쇼핑몰 주문·상품 데이터 수집 | PRD §6-2, REF-07 |
 | EXT-05 | 네이버 DataLab 트렌드 API | Inbound | REST/HTTPS | 키워드 검색량 지수 수집. 일 25,000회 | PRD §6-2, REF-08 |
 | EXT-06 | 카카오 알림톡 API | Outbound | REST/HTTPS | 인력소·센터장 자동 알림 발송. 건당 과금, 템플릿 사전 승인 | PRD §6-2, REF-09 |
-| EXT-07 | AWS 클라우드 인프라 | Infrastructure | — | EC2/S3/RDS/CloudWatch. 스타트업 크레딧 활용 | PRD §6-3, §5-3 |
+| EXT-07 | 클라우드 인프라 (AWS/GCP) | Infrastructure | — | EC2/S3/RDS/CloudWatch 또는 GCP 동급 서비스. 무료 티어 + 저비용 인스턴스 조합 운영 | PRD §6-3, §5-3 |
+
+#### 3.1.1 외부 시스템 장애 시 임시 우회 전략 (Fallback Strategy)
+
+외부 서비스가 가용하지 않은 경우, 아래 우회 전략을 통해 시스템의 핵심 기능을 유지한다.
+
+| 외부 시스템 | 장애 유형 | 우회 전략 | 데이터 소스 | 최대 허용 시간 |
+|---|---|---|---|---|
+| **기상청 API** (EXT-01, 02) | API 응답 실패 / Rate Limit 초과 | ① Redis 캐시에 저장된 최근 24시간 기상 데이터로 자동 폴백 ② 캐시 미적중 시, 사전 수집된 과거 동일 일자·지역 기상 이력 DB에서 유사 패턴 조회 ③ 모든 소스 불가 시, 최근 7일 평균값을 더미 데이터로 주입하고 리포트에 "기상 데이터 추정치" 경고 표시 | `WEATHER_DATA` 테이블 (과거 이력) + Redis 캐시 | 24시간 |
+| **카페24 API** (EXT-03) | OAuth 토큰 만료 / API 장애 | ① 최근 동기화된 `ORDER`, `ORDER_ITEM`, `INVENTORY` DB 데이터를 그대로 사용 ② 토큰 자동 갱신(Refresh Token) 3회 재시도 후 실패 시, 사용자에게 재연동 안내 표시 ③ DB 내 최근 7일 주문 추세를 기반으로 추정 데이터 생성 | `ORDER`, `INVENTORY` 테이블 (최근 동기화분) | 6시간 |
+| **스마트스토어 API** (EXT-04) | OAuth 토큰 만료 / API 장애 | 카페24와 동일 전략 적용. 최근 동기화 DB 데이터 우선, 재연동 안내 표시 | `ORDER`, `INVENTORY` 테이블 (최근 동기화분) | 6시간 |
+| **네이버 DataLab API** (EXT-05) | API 응답 실패 / Rate Limit 초과 | ① 사전 수집된 `TREND_DATA` 테이블의 최근 30일 키워드 트렌드 이력으로 대체 ② 이력 부족 시, 해당 키워드의 계절성 지수(전년 동기 대비)를 기본값으로 적용 ③ 리포트에 "트렌드 데이터 추정치" 경고 표시 | `TREND_DATA` 테이블 (과거 이력) | 48시간 |
+| **카카오 알림톡 API** (EXT-06) | API 장애 / 템플릿 승인 지연 | ① SMS 대체 발송 (통신사 API 연동) ② SMS도 불가 시, 웹 대시보드 내 팝업 알림 + 이메일 발송으로 대체 ③ 발송 실패 건은 큐에 보관 후 API 복구 시 자동 재발송 | 내부 알림 큐 (Redis Queue) | 즉시 대체 |
+| **클라우드 인프라** (EXT-07) | 특정 리전/서비스 장애 | ① S3 → GCS로의 스토리지 크로스 리전 백업 ② RDS → 읽기 전용 레플리카(다른 AZ) 자동 장애 조치 ③ 전체 리전 장애 시, 수동 DR 절차 발동 (RTO ≤ 4시간) | 크로스 리전/AZ 백업 | RTO 4시간 |
+
+> **운영 원칙:** 모든 폴백 전환은 자동으로 수행되며, 전환 시점과 사유가 `AUDIT_LOG`에 기록된다. 폴백 데이터가 사용된 예측 결과 및 리포트에는 "일부 데이터 추정치 포함" 워터마크가 자동 삽입된다.
 
 ### 3.2 Client Applications
 
@@ -485,7 +501,7 @@ graph TB
 
 | ID | 요구사항 | 임계치 | PRD 참조 |
 |---|---|---|---|
-| **REQ-NF-017** | MVP 기간 인프라 월 비용 | ≤ 500만 원 (AWS 스타트업 크레딧 활용) | PRD §5-3, CON-03 |
+| **REQ-NF-017** | MVP 기간 인프라 월 비용 | 무료~최대 월 100만 원 이내 (클라우드 무료 티어 우선 활용) | PRD §5-3, CON-03 |
 
 #### 4.2.5 모니터링 및 운영 (Monitoring & Operations)
 
@@ -571,7 +587,7 @@ graph TB
 | 공통 | | REQ-NF-014 | TC-N14: AES-256 저장 암호화 검증 |
 | 공통 | | REQ-NF-015 | TC-N15: OAuth 2.0 + JWT 인증 검증 |
 | 공통 | | REQ-NF-016 | TC-N16: 멀티테넌트 격리 검증 |
-| 공통 | | REQ-NF-017 | TC-N17: 인프라 월 비용 ≤500만 원 검증 |
+| 공통 | | REQ-NF-017 | TC-N17: 인프라 월 비용 ≤100만 원 검증 |
 
 ---
 
