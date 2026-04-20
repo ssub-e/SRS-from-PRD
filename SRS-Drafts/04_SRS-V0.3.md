@@ -40,7 +40,7 @@
 | ID | 항목 | 설명 | PRD 참조 |
 |---|---|---|---|
 | SCOPE-IN-01 | F1. XAI 원클릭 리포트 추출 | 딥러닝 예측 + 원인 해설 자연어 엔진(XAI) + 임원용 PDF 출력 모듈. SHAP 기반 외부 변수 Top 3 자연어 해설 포함 | PRD §4-1 F1, §3 Story 1 |
-| SCOPE-IN-02 | F2. 쇼핑몰 API 원클릭 연동 모듈 | 물류 센터-화주 간 마찰 없는 마켓 API(카페24, 스마트스토어) 1-Click OAuth 연동. 화주사 개발 개입 원천 차단 | PRD §4-1 F2, §3 Story 2 |
+| SCOPE-IN-02 | F2. 쇼핑몰 API 원클릭 연동 모듈 | 물류 센터-화주 간 마찰 없는 마켓 API 1-Click OAuth 연동. **Phase 1: 카페24 단독**, 스마트스토어는 Phase 1.5에서 추가 (ADJ-01). 화주사 개발 개입 원천 차단 | PRD §4-1 F2, §3 Story 2 |
 | SCOPE-IN-03 | F3. 적정 인원 역산 대시보드 | 출하 용량(Capacity) 역산식 기반 적정 인원 도출 및 카카오 알림톡 자동 발송 (매일 16:00) | PRD §4-1 F3, §3 Story 2 |
 
 #### 1.2.2 Out-of-Scope
@@ -115,7 +115,7 @@
 | CON-04 | F3(인원 역산)은 F2(API 연동 모듈) 선행 완료 필수 | PRD §7-4 |
 | CON-05 | PDF 리포트 양식은 파일럿 고객의 기존 결재 양식 수집 후 확정 | PRD §7-4 |
 | CON-06 | 코어 예측 알고리즘은 SaaS API 과금 모델로 IP 보호 — 소스코드 외부 노출 금지 | PRD §4-3 |
-| CON-07 | 멀티테넌트 격리는 MVP 기간 논리적(스키마) 격리 수준 적용 — 하드웨어 격리 미적용 | PRD §5-2 |
+| CON-07 | 멀티테넌트 격리는 MVP 기간 **tenant_id 컬럼 기반 Row-Level Isolation** 적용 (ADJ-02). Phase 2에서 스키마 격리 업그레이드 가능. 교차 노출 방지는 API 미들웨어로 강제 | PRD §5-2 |
 | CON-08 | 인과성 해설(XAI)의 한국어 렌더링 결과물 품질은 LLM 서머라이저의 한국어 경영진 톤 조정 성능에 의존 | PRD §7-4 |
 
 #### 1.5.3 기술 스택 (C-TEC)
@@ -128,12 +128,12 @@
 |---|---|---|---|
 | C-TEC-001 | 프론트엔드 (대시보드) | **Streamlit** — Python만으로 대시보드 구현. JavaScript 학습 불필요 | React + Recharts 전환 (API 계약 동일) |
 | C-TEC-002 | Backend API | **FastAPI** — 비동기 고성능 REST API. 자동 OpenAPI 문서 생성 | 유지 (변경 없음) |
-| C-TEC-003 | 데이터베이스 | **PostgreSQL + SQLModel** — 로컬 개발은 Docker PG 또는 SQLite. 배포 시 Supabase(PostgreSQL) | AWS RDS PostgreSQL 전환 가능 |
+| C-TEC-003 | 데이터베이스 | **PostgreSQL + SQLModel** — 로컬 개발은 Docker PG. 배포 시 Supabase(PostgreSQL) | AWS RDS PostgreSQL 전환 가능 |
 | C-TEC-004 | 캐시 | **Redis (Upstash 무료 티어)** — 폴백 캐시 + 알림 큐 | ElastiCache 전환 가능 |
-| C-TEC-005 | 예측 엔진 | **Prophet / LightGBM** — 빠른 구현 + SHAP 완전 호환 | TFT/N-BEATS 앙상블 전환 (어댑터 교체) |
-| C-TEC-006 | XAI 해설 | **SHAP** — Prophet/LightGBM/TFT 전 모델 호환 | 유지 (변경 없음) |
-| C-TEC-007 | PDF 생성 | **WeasyPrint** — HTML/CSS 템플릿 → PDF. Python 네이티브 | Puppeteer 전환 가능 (동일 HTML 템플릿) |
-| C-TEC-008 | ETL 스케줄링 | **APScheduler (FastAPI 내장)** — 별도 인프라 불필요 | Airflow 전환 가능 (동일 Python 함수) |
+| C-TEC-005 | 예측 엔진 | **LightGBM 우선** (Docker 이미지 경량, 빌드 <10초) + SHAP 완전 호환. Prophet은 선택적 추가 (ADJ-04) | TFT/N-BEATS 앙상블 전환 (어댑터 교체) |
+| C-TEC-006 | XAI 해설 | **SHAP** — LightGBM/Prophet/TFT 전 모델 호환 | 유지 (변경 없음) |
+| C-TEC-007 | PDF 생성 | **WeasyPrint** (1차) + **FPDF2** (백업, 순수 Python 의존성 제로) — HTML/CSS 템플릿 → PDF (ADJ-06) | Puppeteer 전환 가능 (동일 HTML 템플릿) |
+| C-TEC-008 | ETL 스케줄링 | **APScheduler (FastAPI 내장)** + **PostgreSQL jobstore 영속화 필수** (ADJ-05). 서비스 재시작 시 스케줄 유실 방지 | Airflow 전환 가능 (동일 Python 함수) |
 
 **(시스템 외부 — 연결 및 AI 통합)**
 
@@ -143,6 +143,13 @@
 | C-TEC-010 | 배포 및 인프라 | **Railway 또는 Render** — Git Push 자동 배포. 단일 서버에 프론트+백엔드+스케줄러 통합 | Phase 2: AWS ECS 전환 가능 (Docker 동일) |
 | C-TEC-011 | 스토리지 | **Supabase Storage 또는 S3 호환** — 원시 데이터 저장 | AWS S3 전환 가능 |
 | C-TEC-012 | 알림 | **카카오 알림톡 API + SMS Gateway** — PRD 명시 채널 | 유지 (변경 없음) |
+
+**(개발 환경 및 방법론)**
+
+| ID | 제약사항 | 상세 | 비고 |
+|---|---|---|---|
+| C-TEC-013 | 개발 환경 표준 | **Docker + docker-compose** — Sprint 0에서 확립. 모든 개발은 컨테이너 내에서 진행하여 OS 차이 원천 차단 (ADJ-07) | 로컬 ≈ 배포 환경 일치 보장 |
+| C-TEC-014 | 한국 API 연동 방법론 | 카페24·카카오·기상청 API 연동 시 **공식 문서 전문을 AI context에 직접 주입**(context injection)하며 개발 진행 (ADJ-08) | AI 학습 데이터 부족 보완 |
 
 > **교체 원칙:** 각 C-TEC 항목은 어댑터 인터페이스를 통해 격리되며, Phase 1→2 전환 시 **해당 모듈만 교체**하고 나머지 시스템은 무변경을 보장한다. 상세 교체 경로는 `SRS-V0.3_tech-review.md`를 참조한다.
 
@@ -168,12 +175,12 @@
 | ID | 시스템 | 유형 | 프로토콜 | 설명 | PRD 참조 |
 |---|---|---|---|---|---|
 | EXT-01 | 기상청 단기예보 API | Inbound | REST/HTTPS | 지역별 기온·강수·풍속 데이터 수집. 일 1회 메인 배치 덤프 | PRD §6, REF-05 |
-| EXT-02 | 기상청 중기예보 API | Inbound | REST/HTTPS | 3~10일 예보 데이터 수집. 업데이트 주기 6시간 | PRD §6 |
+| EXT-02 | 기상청 중기예보 API | Inbound | REST/HTTPS | 3~10일 예보 데이터 수집. **Phase 2에서 추가** (ADJ-03). MVP에서는 단기예보만 사용 | PRD §6 |
 | EXT-03 | 카페24 주문/재고 API | Inbound | REST/HTTPS (OAuth 2.0) | 쇼핑몰 주문·재고 데이터 수집. Rate Limit 분당 제한 | PRD §6, REF-06 |
-| EXT-04 | 스마트스토어 API | Inbound | REST/HTTPS (OAuth 2.0) | 쇼핑몰 주문·상품 데이터 수집 | PRD §6, REF-07 |
+| EXT-04 | 스마트스토어 API | Inbound | REST/HTTPS (OAuth 2.0) | 쇼핑몰 주문·상품 데이터 수집. **Phase 1.5에서 추가** (ADJ-01) | PRD §6, REF-07 |
 | EXT-05 | 네이버 DataLab 트렌드 API | Inbound | REST/HTTPS | 키워드 검색량 지수 수집 | PRD §6, REF-08 |
 | EXT-06 | 카카오 알림톡 API | Outbound | REST/HTTPS | 센터장·인력소 자동 알림 발송. 건당 과금, 템플릿 사전 승인 | PRD §6, REF-09 |
-| EXT-07 | 클라우드 인프라 (AWS/GCP) | Infrastructure | — | 스타트업 크레딧 활용 운영 (비용 추가 검증 필요 — CON-03) | PRD §6 |
+| EXT-07 | 클라우드 인프라 (Railway/Render) | Infrastructure | — | 무료/저가 PaaS 우선 활용 (비용 추가 검증 필요 — CON-03). Phase 2: AWS 전환 가능 | PRD §6 |
 
 #### 3.1.1 외부 시스템 장애 시 임시 우회 전략 (Fallback Strategy)
 
@@ -386,8 +393,8 @@ flowchart LR
 ```mermaid
 graph TB
     subgraph client ["Client Layer"]
-        WEB["웹 대시보드\n React + Recharts"]
-        PDF_OUT["PDF 리포트"]
+        WEB["웹 대시보드\nStreamlit (MVP)"]
+        PDF_OUT["PDF 리포트\nWeasyPrint"]
     end
 
     subgraph api_layer ["API Layer"]
@@ -396,20 +403,20 @@ graph TB
     end
 
     subgraph biz ["Business Logic Layer"]
-        FC["예측 엔진\nTFT/앙상블"]
-        XAI_E["XAI 해설 엔진\nSHAP + LLM"]
+        FC["예측 엔진\nLightGBM (MVP)"]
+        XAI_E["XAI 해설 엔진\nSHAP + Gemini"]
         WF["인원 역산 모듈"]
-        RPT["리포트 생성기\nPuppeteer"]
+        RPT["리포트 생성기\nWeasyPrint/FPDF2"]
         NOTI["알림 발송기"]
         PROMO["프로모션 시그널 감지기"]
         CONF["신뢰도 검증기\nconfidence_level 체크"]
     end
 
     subgraph data ["Data Layer"]
-        ETL["ETL 파이프라인\nAirflow"]
-        PG["PostgreSQL\n트랜잭션 DB"]
-        S3["AWS S3\n원시 데이터"]
-        REDIS["Redis\n캐시"]
+        ETL["ETL 스케줄러\nAPScheduler + PG jobstore"]
+        PG["PostgreSQL + SQLModel\n(Supabase)"]
+        STORAGE["Supabase Storage\n원시 데이터"]
+        REDIS["Redis (Upstash)\n캐시"]
     end
 
     subgraph ext ["External Systems"]
@@ -458,7 +465,7 @@ graph TB
 | **REQ-FUNC-001** | 시스템은 기상청 단기예보 API로부터 지역별 기온·강수·풍속 데이터를 일 1회 이상 자동 수집하여 Data Lake에 저장해야 한다. | Story 1, F1 | Must | **Given** 기상청 API 연결이 정상 상태일 때 **When** Airflow DAG이 실행되면 **Then** WEATHER_DATA 엔터티에 저장된다. 실패 시 자동 재시도 3회(간격 조율형) 후 Slack 알림. |
 | **REQ-FUNC-002** | 시스템은 네이버 DataLab API로부터 키워드 검색량 지수를 일 1회 이상 자동 수집해야 한다. | Story 1, F1 | Must | **Given** 네이버 DataLab API 정상 상태일 때 **When** ETL 스케줄이 실행되면 **Then** TREND_DATA 엔터티에 저장된다. |
 | **REQ-FUNC-003** | [Exception] 기상청 API 수집 실패 시, 최근 24시간 캐시 데이터로 자동 폴백하고 **"금일 실시간 데이터 지연. 어제(날짜) 기준 데이터 반영"** 엠블럼을 리포트에 표기해야 한다. | Story 1 AC 1.4 | Must | **Given** 기상청 API 3회 연속 실패일 때 **When** 예측 엔진이 기상 데이터 요청하면 **Then** 캐시 데이터 반환 + 엠블럼 자동 삽입. |
-| **REQ-FUNC-004** | 시스템은 TFT/앙상블 모델 기반으로 SKU별 수요 예측값과 **신뢰도(confidence_level)**를 산출해야 한다. | Story 1, F1 | Must | **Given** 기상·트렌드·매출 데이터 수집 완료일 때 **When** 예측 엔진 API 호출되면 **Then** predicted_qty + confidence_level이 FORECAST 엔터티에 저장된다. |
+| **REQ-FUNC-004** | 시스템은 예측 모델(MVP: LightGBM, Phase 2: TFT/앙상블) 기반으로 SKU별 수요 예측값과 **신뢰도(confidence_level)**를 산출해야 한다. | Story 1, F1 | Must | **Given** 기상·트렌드·매출 데이터 수집 완료일 때 **When** 예측 엔진 API 호출되면 **Then** predicted_qty + confidence_level이 FORECAST 엔터티에 저장된다. |
 | **REQ-FUNC-005** | 시스템은 예측 결과에 대해 SHAP 기반 **변수별 기여도 Top 3**를 산출하고 FORECAST_FACTOR에 저장해야 한다. | Story 1 AC 1.1 | Must | **Given** 예측 모델이 예측값 산출한 상태일 때 **When** XAI 모듈 실행되면 **Then** factor_type별 shap_value가 기여도 순으로 저장된다. |
 | **REQ-FUNC-006** | 시스템은 SHAP 기여도를 LLM 서머라이저를 통해 **경영진 톤의 한국어 자연어 해설**(예: "강수량 특이점으로 우산 수요 23% 증가 예상")로 변환해야 한다. | Story 1 AC 1.1 | Must | **Given** SHAP value 산출 상태일 때 **When** LLM 서머라이저 실행되면 **Then** explanation_text에 경영진 이해 가능 해설 저장. |
 | **REQ-FUNC-007** | 사용자가 '리포트 생성' 버튼 클릭 시, 예측 결과 + XAI 해설이 포함된 발주 권장 PDF를 자동 생성해야 한다. | Story 1 | Must | **Given** 데이터 수집 완료 상태일 때 **When** 사용자가 '리포트 생성' 클릭하면 **Then** PDF 생성 완료. PDF 생성 완료 소요시간 **≤ 20초** (p95). |
@@ -471,7 +478,7 @@ graph TB
 | ID | 요구사항 | Source | Priority | Acceptance Criteria |
 |---|---|---|---|---|
 | **REQ-FUNC-011** | 시스템은 카페24에 대해 **1-Click OAuth 2.0 인증 플로우**를 제공하여, 화주사가 개발 개입 없이 연동을 완료할 수 있어야 한다. | Story 2 AC 2.1 | Must | **Given** 화주사 담당자가 로그인 상태일 때 **When** '카페24 연동' 클릭하면 **Then** OAuth 인증 → 토큰 발급 → 연동 검증 완료. |
-| **REQ-FUNC-012** | 시스템은 스마트스토어에 대해 1-Click OAuth 인증 플로우를 제공해야 한다. | Story 2 AC 2.1 | Must | 카페24와 동일한 1-Click 연동 플로우 적용. |
+| **REQ-FUNC-012** | 시스템은 스마트스토어에 대해 1-Click OAuth 인증 플로우를 제공해야 한다. **Phase 1.5에서 구현** (ADJ-01). | Story 2 AC 2.1 | Should | 카페24와 동일한 1-Click 연동 플로우 적용. 카페24 어댑터 패턴을 재활용하여 확장. |
 | **REQ-FUNC-013** | 시스템은 연동된 쇼핑몰로부터 주문 데이터를 주기적(최소 일 1회) 자동 수집해야 한다. | Story 2, F2 | Must | **Given** SHOP.status = connected일 때 **When** ETL 스케줄 트리거되면 **Then** ORDER 엔터티에 적재. |
 | **REQ-FUNC-014** | 시스템은 연동된 쇼핑몰로부터 재고 데이터를 자동 수집해야 한다. | F2 | Must | **Given** 연동 완료 상태일 때 **When** ETL 실행되면 **Then** INVENTORY.current_qty 최신 갱신. |
 | **REQ-FUNC-015** | 시스템은 카페24 API Rate Limit을 초과하지 않도록 배치 큐잉 및 캐시 레이어를 적용해야 한다. | F2, CON-02 | Must | **Given** API 호출이 Rate Limit 근접일 때 **When** 추가 호출 발생하면 **Then** 배치 큐에 적재. 캐시 히트 시 API 호출 생략. |
@@ -495,8 +502,8 @@ graph TB
 | ID | 요구사항 | Source | Priority | Acceptance Criteria |
 |---|---|---|---|---|
 | **REQ-FUNC-025** | 시스템은 사용자 인증에 OAuth 2.0 + JWT를 사용하고, RBAC를 적용해야 한다. | PRD §5-2 | Must | **Given** 로그인 시도 시 **When** 유효 자격 증명 제출하면 **Then** JWT 토큰 발급 + 역할별 접근 제어. |
-| **REQ-FUNC-026** | 시스템은 멀티테넌트 환경에서 테넌트별 데이터를 논리적 격리(스키마)해야 한다. | PRD §5-2 | Must | **Given** 복수 테넌트 사용 시 **When** 테넌트 A가 조회하면 **Then** A 데이터만 반환, 타 테넌트 접근 불가. 화주사 간 교차 노출 사고 절대 금지. |
-| **REQ-FUNC-027** | 시스템은 Airflow 기반 ETL로 외부 API 수집 → 변환 → 적재를 자동화해야 한다. | PRD §6-2 | Must | **Given** DAG 정의 상태일 때 **When** 스케줄 도달하면 **Then** 수집→정규화→적재 수행. 실패 시 간격 조율형 재시도 3회 + Slack 알림. |
+| **REQ-FUNC-026** | 시스템은 멀티테넌트 환경에서 테넌트별 데이터를 **tenant_id 컬럼 기반 Row-Level Isolation**으로 격리해야 한다 (ADJ-02). API 미들웨어에서 tenant_id 필터링을 강제한다. | PRD §5-2 | Must | **Given** 복수 테넌트 사용 시 **When** 테넌트 A가 조회하면 **Then** WHERE tenant_id=A 자동 적용, 타 테넌트 접근 불가. 화주사 간 교차 노출 사고 절대 금지. |
+| **REQ-FUNC-027** | 시스템은 APScheduler(MVP) 기반 ETL로 외부 API 수집 → 변환 → 적재를 자동화해야 한다. PostgreSQL jobstore로 스케줄을 영속화한다 (ADJ-05). | PRD §6 | Must | **Given** 스케줄 잡 정의 상태일 때 **When** 스케줄 도달하면 **Then** 수집→정규화→적재 수행. 실패 시 간격 조율형 재시도 3회 + Slack 알림. |
 | **REQ-FUNC-028** | 시스템은 모든 사용자 행위 및 시스템 이벤트에 대한 감사 로그를 기록해야 한다. | SRS 자체 보완 | Must | **Given** 주요 작업 수행 시 **When** 이벤트 발생하면 **Then** 타임스탬프·사용자ID·액션·대상이 감사 로그에 기록. |
 
 ### 4.2 Non-Functional Requirements
